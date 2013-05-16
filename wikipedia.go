@@ -146,10 +146,10 @@ func main() {
 					return strings.Split(a[2:len(a)-2], "|")[0]
 				})
 				content = regexp.MustCompile("'''.+?'''").ReplaceAllStringFunc(content, func(a string) string {
-					return a[3:len(a)-3]
+					return a[3 : len(a)-3]
 				})
 				content = regexp.MustCompile("''.+?''").ReplaceAllStringFunc(content, func(a string) string {
-					return a[2:len(a)-2]
+					return a[2 : len(a)-2]
 				})
 				content = regexp.MustCompile("{{.+?}}").ReplaceAllStringFunc(content, func(a string) string {
 					return strings.Split(a[2:len(a)-2], "|")[0]
