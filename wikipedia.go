@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/hoisie/web"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -32,6 +34,16 @@ type Message struct {
 	Nickname        string `json:"nickname"`
 	Text            string `json:"text"`
 }
+
+func defaultAddr() string {
+	port := os.Getenv("PORT")
+	if port == "" {
+		return ":80"
+	}
+	return ":" + port
+}
+
+var addr = flag.String("addr", defaultAddr(), "server address")
 
 var reToken = regexp.MustCompile(`^wp:(.+)$`)
 
@@ -88,6 +100,8 @@ func jsonScan(v interface{}, jp string, t interface{}) (err error) {
 }
 
 func main() {
+	flag.Parse()
+
 	web.Get("/", func() string {
 		return ""
 	})
@@ -168,5 +182,5 @@ func main() {
 		}
 		return ret
 	})
-	web.Run(":11617")
+	web.Run(*addr)
 }
