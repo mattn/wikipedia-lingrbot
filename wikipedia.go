@@ -147,13 +147,13 @@ func main() {
 				if lines := strings.Split(content, "\n"); len(lines) > 0 {
 					content = ""
 					for _, line := range lines {
-						if len(line) > 3 && line[:3] == "'''" {
+						if len(line) > 3 && line[:3] == "'''" && strings.Contains(line, "''' ") {
 							content = line
 							break
 						}
 					}
 					if content == "" {
-						content = lines[0]
+						content = strings.Join(lines, "\n")
 					}
 				}
 				content = regexp.MustCompile("\\[\\[.+?]]").ReplaceAllStringFunc(content, func(a string) string {
@@ -164,6 +164,9 @@ func main() {
 				})
 				content = regexp.MustCompile("''.+?''").ReplaceAllStringFunc(content, func(a string) string {
 					return a[2 : len(a)-2]
+				})
+				content = regexp.MustCompile("{{aimai}}").ReplaceAllStringFunc(content, func(a string) string {
+					return "この単語は曖昧過ぎます"
 				})
 				content = regexp.MustCompile("{{.+?}}").ReplaceAllStringFunc(content, func(a string) string {
 					return strings.Split(a[2:len(a)-2], "|")[0]
