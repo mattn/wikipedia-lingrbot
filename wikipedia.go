@@ -153,8 +153,12 @@ func main() {
 						}
 					}
 					if content == "" {
-						//content = strings.Join(lines, "\n")
-						content = lines[0]
+						for _, line := range lines {
+							if strings.TrimSpace(line) == "" {
+								break
+							}
+							content += line + "\n"
+						}
 					}
 				}
 				content = regexp.MustCompile("\\[\\[.+?]]").ReplaceAllStringFunc(content, func(a string) string {
