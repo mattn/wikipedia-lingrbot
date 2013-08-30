@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/hoisie/web"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -107,80 +108,85 @@ func main() {
 	})
 	web.Post("/lingr", func(ctx *web.Context) string {
 		var status Status
-		err := json.NewDecoder(ctx.Request.Body).Decode(&status)
+		err := json.NewDecoder(io.TeeReader(ctx.Request.Body, os.Stdout)).Decode(&status)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return ""
+		}
+		if len(status.Events) == 0 {
+			return ""
+		}
 		ret := ""
-		if err == nil && len(status.Events) > 0 {
-			text := status.Events[0].Message.Text
-			tokens := reToken.FindStringSubmatch(text)
-			if len(tokens) == 2 {
-				q := "action=query" +
-					"&titles=" + url.QueryEscape(tokens[1]) +
-					"&prop=revisions" +
-					"&rvprop=content" +
-					"&redirects=1" +
-					"&format=json"
+		text := status.Events[0].Message.Text
+		tokens := reToken.FindStringSubmatch(text)
+		if len(tokens) == 2 {
+			q := "action=query" +
+				"&titles=" + url.QueryEscape(tokens[1]) +
+				"&prop=revisions" +
+				"&rvprop=content" +
+				"&redirects=1" +
+				"&format=json"
 
-				r, err := http.Get("http://ja.wikipedia.org/w/api.php?" + q)
-				if err != nil {
-					return "No pedia"
-				}
-				defer r.Body.Close()
-				if r.StatusCode != 200 {
-					return "No pedia"
-				}
-				var v interface{}
-				err = json.NewDecoder(r.Body).Decode(&v)
-				if err != nil {
-					return "No pedia"
-				}
+			r, err := http.Get("http://ja.wikipedia.org/w/api.php?" + q)
+			if err != nil {
+				return "No pedia"
+			}
+			defer r.Body.Close()
+			if r.StatusCode != 200 {
+				return "No pedia"
+			}
+			var v interface{}
+			err = json.NewDecoder(r.Body).Decode(&v)
+			if err != nil {
+				return "No pedia"
+			}
 
-				var title, content string
-				err = jsonScan(v, "/query/pages[0]/title", &title)
-				if err != nil {
-					return "No pedia"
-				}
-				err = jsonScan(v, "/query/pages[0]/revisions[0]/*", &content)
-				if err != nil {
-					return "No pedia"
-				}
+			var title, content string
+			err = jsonScan(v, "/query/pages[0]/title", &title)
+			if err != nil {
+				return "No pedia"
+			}
+			err = jsonScan(v, "/query/pages[0]/revisions[0]/*", &content)
+			if err != nil {
+				return "No pedia"
+			}
 
-				if lines := strings.Split(content, "\n"); len(lines) > 0 {
-					content = ""
+			if lines := strings.Split(content, "\n"); len(lines) > 0 {
+				content = ""
+				for _, line := range lines {
+					if len(line) > 3 && line[:3] == "'''" && strings.Contains(line, "''' ") {
+						content = line
+						break
+					}
+				}
+				if content == "" {
 					for _, line := range lines {
-						if len(line) > 3 && line[:3] == "'''" && strings.Contains(line, "''' ") {
-							content = line
+						if strings.TrimSpace(line) == "" {
 							break
 						}
-					}
-					if content == "" {
-						for _, line := range lines {
-							if strings.TrimSpace(line) == "" {
-								break
-							}
-							content += line + "\n"
-						}
+						content += line + "\n"
 					}
 				}
-				content = regexp.MustCompile("\\[\\[.+?]]").ReplaceAllStringFunc(content, func(a string) string {
-					return strings.Split(a[2:len(a)-2], "|")[0]
-				})
-				content = regexp.MustCompile("'''.+?'''").ReplaceAllStringFunc(content, func(a string) string {
-					return a[3 : len(a)-3]
-				})
-				content = regexp.MustCompile("''.+?''").ReplaceAllStringFunc(content, func(a string) string {
-					return a[2 : len(a)-2]
-				})
-				content = regexp.MustCompile("{{aimai}}").ReplaceAllStringFunc(content, func(a string) string {
-					return "この単語は曖昧過ぎます"
-				})
-				content = regexp.MustCompile("{{.+?}}").ReplaceAllStringFunc(content, func(a string) string {
-					return strings.Split(a[2:len(a)-2], "|")[0]
-				})
-				content = regexp.MustCompile("<[^>]+?>(?:.|\\n)+?</[^>]+?>").ReplaceAllStringFunc(content, func(a string) string {
-					return "\n...\n"
-				})
-				ret = fmt.Sprintf("http://ja.wikipedia.org/wiki/%s", url.QueryEscape(title)) + "\n" + content
 			}
+			content = regexp.MustCompile("\\[\\[.+?]]").ReplaceAllStringFunc(content, func(a string) string {
+				return strings.Split(a[2:len(a)-2], "|")[0]
+			})
+			content = regexp.MustCompile("'''.+?'''").ReplaceAllStringFunc(content, func(a string) string {
+				return a[3 : len(a)-3]
+			})
+			content = regexp.MustCompile("''.+?''").ReplaceAllStringFunc(content, func(a string) string {
+				return a[2 : len(a)-2]
+			})
+			content = regexp.MustCompile("{{aimai}}").ReplaceAllStringFunc(content, func(a string) string {
+				return "この単語は曖昧過ぎます"
+			})
+			content = regexp.MustCompile("{{.+?}}").ReplaceAllStringFunc(content, func(a string) string {
+				return strings.Split(a[2:len(a)-2], "|")[0]
+			})
+			content = regexp.MustCompile("<[^>]+?>(?:.|\\n)+?</[^>]+?>").ReplaceAllStringFunc(content, func(a string) string {
+				return "\n...\n"
+			})
+			ret = fmt.Sprintf("http://ja.wikipedia.org/wiki/%s", url.QueryEscape(title)) + "\n" + content
 		}
 		if len(ret) > 0 {
 			ret = strings.TrimRight(ret, "\n")
